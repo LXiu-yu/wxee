@@ -1,6 +1,6 @@
 import tempfile
 import warnings
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import ee  # type: ignore
 import rasterio  # type: ignore
@@ -274,3 +274,76 @@ class Image:
         """Add a prefix to the image's system:id"""
         original_id = _replace_if_null(self._obj.get("system:id"), "null")
         return self._obj.set("system:id", ee.String(prefix).cat("_").cat(original_id))
+
+    def to_drive(
+        self,
+        region: Optional[ee.Geometry] = None,
+        scale: Optional[int] = None,
+        crs: str = "EPSG:4326",
+        nodata: int = -32_768,
+        autostart: bool = True,
+        *args: Any,
+        **kwargs: Any,
+    ) -> ee.batch.Task:
+        """Download an image to Google Drive.
+
+        Parameters
+        ----------
+        region : ee.Geometry, optional
+            The region to download the image within. If none is provided, the :code:`geometry` of the image will be used.
+        scale : int, optional
+            The scale to download the image at in the CRS units. If none is provided, the :code:`projection.nominalScale`
+            of the image will be used.
+        crs : str, default "EPSG:4326"
+            The coordinate reference system to download the image in.
+        file_per_band : bool, default False
+            If true, one file will be downloaded per band. If false, one multiband file will be downloaded instead.
+        masked : bool, default True
+            If true, the nodata value of the image will be set in the image metadata.
+        nodata : int, default -32,768
+            The value to set as nodata in the image. Any masked pixels in the image will be filled with this value.
+        progress : bool, default True
+            If true, a progress bar will be displayed to track download progress.
+        max_attempts: int, default 10
+            Download requests to Earth Engine may intermittently fail. Failed attempts will be retried up to
+            max_attempts. Must be between 1 and 99.
+
+        Returns
+        -------
+        list[str]
+            Paths to downloaded images.
+
+        Raises
+        ------
+        DownloadError
+            Raised if the image cannot be successfully downloaded after the maximum number of attempts.
+
+        Example
+        -------
+        >>> import ee, wxee
+        >>> ee.Initialize()
+        >>> img = ee.Image("COPERNICUS/S2_SR/20200803T181931_20200803T182946_T11SPA")
+        >>> img.wx.to_tif(description="las_vegas", scale=200, crs="EPSG:5070", nodata=-9999)
+        """
+        image_id = self._get_download_id()
+
+        # Unmasking without sameFootprint (below) makes images unbounded, so store the bounded geometry before unmasking.
+        region = self._obj.geometry() if not region else region
+
+        # Set nodata values. If sameFootprint is true, areas outside of the image bounds will not be set.
+        img = self._obj.unmask(nodata, sameFootprint=False)
+
+        task = ee.batch.Export.image.toDrive(
+            image=img,
+            description=image_id.getInfo(),
+            region=region,
+            scale=scale,
+            crs=crs,
+            *args,
+            **kwargs,
+        )
+
+        if autostart:
+            task.start()
+
+        return task

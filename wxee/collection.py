@@ -1,5 +1,5 @@
 import tempfile
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
 import ee  # type: ignore
 import xarray as xr
@@ -233,3 +233,35 @@ class ImageCollection:
     def to_time_series(self) -> TimeSeries:
         """Convert to a :code:`wxee.TimeSeries` collection with associated methods."""
         return TimeSeries(self._obj)
+
+    def to_drive(
+        self,
+        prefix: Optional[str] = None,
+        region: Optional[ee.Geometry] = None,
+        scale: Optional[int] = None,
+        crs: str = "EPSG:4326",
+        nodata: int = -32_768,
+        num_cores: int = -1,
+        progress: bool = True,
+        autostart: bool = True,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Union[ee.batch.Task]:
+        if prefix:
+            self._obj = self._obj.map(lambda img: img.wx._prefix_id(prefix))
+
+        imgs = self._to_image_list()
+        n = len(imgs)
+
+        with Parallel(n_jobs=num_cores, backend="threading") as p:
+            with parallel_tqdm(
+                tqdm(desc="Starting export", total=n, disable=not progress)
+            ):
+                tasks = p(
+                    delayed(img.wx.to_drive)(
+                        region, scale, crs, nodata, autostart, *args, **kwargs
+                    )
+                    for img in imgs
+                )
+
+        return tasks

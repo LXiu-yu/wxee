@@ -232,3 +232,10 @@ def parallel_tqdm(tqdm_object: tqdm) -> tqdm:
 
 def _normalize(x: ee.Number, minx: ee.Number, maxx: ee.Number) -> ee.Number:
     return ee.Number(x).subtract(minx).divide(ee.Number(maxx).subtract(minx))
+
+
+def dataset_from_drive(path: str) -> xr.Dataset:
+    """Load an xarray.Dataset from a directory containing images or from a zip.
+    This assumes that the files were exported using wxee.TimeSeries.to_drive and have unmodified filenames.
+    """
+    pass
