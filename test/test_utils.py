@@ -7,8 +7,6 @@ import zipfile
 import ee
 import pytest
 import rasterio
-import requests
-import requests_mock
 
 import wxee.utils
 
@@ -196,35 +194,6 @@ def test_set_nodata():
     assert new_nodata == test_nodata
 
     os.remove(tmp_copy)
-
-
-def test_download_url_creates_file():
-    """Test that the download_url function downloads a mock file with correct content."""
-    test_url = "http://aurl.com"
-    content = "this is the content of the file"
-    out_dir = os.path.join("test", "test_data")
-
-    with requests_mock.Mocker() as m:
-        m.get(test_url, text=content)
-        file = wxee.utils._download_url(test_url, out_dir, False, 1)
-
-        assert os.path.isfile(file)
-
-        with open(file, "r") as result:
-            assert result.read() == content
-
-        os.remove(file)
-
-
-def test_download_url_fails_with_404():
-    """Test that the download_url function fails correctly with a 404 response."""
-    test_url = "http://aurl.com"
-
-    with requests_mock.Mocker() as m:
-        m.get(test_url, text="", status_code=404)
-
-        with pytest.raises(requests.exceptions.HTTPError):
-            wxee.utils._download_url(test_url, "", False, 1)
 
 
 def test_unpack_zip():
