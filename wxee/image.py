@@ -9,10 +9,10 @@ from urllib3.exceptions import ProtocolError  # type: ignore
 
 from wxee import constants
 from wxee.accessors import wx_accessor
+from wxee.download import _download_url
 from wxee.exceptions import DownloadError
 from wxee.utils import (
     _dataset_from_files,
-    _download_url,
     _format_date,
     _replace_if_null,
     _set_nodata,
@@ -178,7 +178,9 @@ class Image:
         with tempfile.TemporaryDirectory(
             dir=out_dir, prefix=constants.TMP_PREFIX
         ) as tmp:
-            zipped = _download_url(url, tmp, progress, max_attempts)
+            zipped = _download_url(
+                url, tmp, progress=progress, max_attempts=max_attempts
+            )
             tifs = _unpack_file(zipped, out_dir)
         self._process_tifs(tifs, file_per_band, masked, nodata)
 

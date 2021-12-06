@@ -2,7 +2,6 @@ import contextlib
 import datetime
 import itertools
 import os
-import tempfile
 import warnings
 from typing import Any, List, Tuple, Union
 from zipfile import ZipFile
@@ -10,7 +9,6 @@ from zipfile import ZipFile
 import ee  # type: ignore
 import joblib  # type: ignore
 import rasterio  # type: ignore
-import requests
 import xarray as xr
 from requests.adapters import HTTPAdapter
 from tqdm.auto import tqdm  # type: ignore
@@ -69,70 +67,6 @@ def _unpack_file(file: str, out_dir: str) -> List[str]:
         zipped.extractall(out_dir)
 
     return [os.path.join(out_dir, file) for file in unzipped]
-
-
-def _download_url(url: str, out_dir: str, progress: bool, max_attempts: int) -> str:
-    """Download a file from a URL to a specified directory.
-
-    Parameters
-    ----------
-    url : str
-        The URL address of the element to download.
-    out_dir : str
-        The directory path to save the temporary file to.
-    progress : bool
-        If true, a progress bar will be displayed to track download progress.
-    max_attempts : int
-        The maximum number of times to retry a connection.
-
-    Returns
-    -------
-    str
-        The path to the downloaded file.
-    """
-    filename = tempfile.NamedTemporaryFile(mode="w+b", dir=out_dir, delete=False).name
-    r = _create_retry_session(max_attempts).get(url, stream=True)
-
-    try:
-        r.raise_for_status()
-    except Exception as e:
-        # Delete the tempfile if it could not be downloaded
-        os.remove(filename)
-        raise e
-
-    file_size = int(r.headers.get("content-length", 0))
-
-    with open(filename, "w+b") as dst, tqdm(
-        total=file_size,
-        unit="iB",
-        unit_scale=True,
-        unit_divisor=1024,
-        desc="Downloading",
-        disable=not progress,
-    ) as bar:
-        for data in r.iter_content(chunk_size=1024):
-            size = dst.write(data)
-            bar.update(size)
-
-    return filename
-
-
-def _create_retry_session(max_attempts: int) -> requests.Session:
-    """Create a session with automatic retries.
-
-    https://www.peterbe.com/plog/best-practice-with-retries-with-requests
-    """
-    session = requests.Session()
-    retry = Retry(
-        total=max_attempts, read=max_attempts, connect=max_attempts, backoff_factor=0.1
-    )
-
-    adapter = HTTPAdapter(max_retries=retry)
-
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-
-    return session
 
 
 def _dataset_from_files(files: List[str], masked: bool, nodata: int) -> xr.Dataset:
